@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34622.214
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "kalipproje", "kalipproje.csproj", "{864473A5-B608-449C-A1BD-73813D2DACA5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{864473A5-B608-449C-A1BD-73813D2DACA5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{864473A5-B608-449C-A1BD-73813D2DACA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{864473A5-B608-449C-A1BD-73813D2DACA5}.Debug|x86.ActiveCfg = Debug|x86
+		{864473A5-B608-449C-A1BD-73813D2DACA5}.Debug|x86.Build.0 = Debug|x86
+		{864473A5-B608-449C-A1BD-73813D2DACA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{864473A5-B608-449C-A1BD-73813D2DACA5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{864473A5-B608-449C-A1BD-73813D2DACA5}.Release|x86.ActiveCfg = Release|x86
+		{864473A5-B608-449C-A1BD-73813D2DACA5}.Release|x86.Build.0 = Release|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1CF52E11-696B-4A3D-B236-90211F319E0F}
+	EndGlobalSection
+EndGlobal
