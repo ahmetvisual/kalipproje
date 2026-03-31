@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -304,8 +304,8 @@ namespace kalipproje
                         if (modelInfo != null)
                         {
                             byte[] imageData = File.ReadAllBytes(imageFile);
-                            InsertImageData(modelInfo.Item1, modelInfo.Item2, imageData);
-                            imageCount++;
+                            if (InsertImageData(modelInfo.Item1, modelInfo.Item2, imageData))
+                                imageCount++;
                         }
                     }
 
@@ -338,21 +338,37 @@ namespace kalipproje
             return modelInfo;
         }
 
-        private void InsertImageData(int modelID, string modelCode, byte[] imageData)
+        private bool InsertImageData(int modelID, string modelCode, byte[] imageData)
         {
             using (SqlConnection connection = DatabaseHelper.GetConnection())
             {
+                connection.Open();
+
+                // Resim limit kontrolü (DATALENGTH kullanılmıyor — binary full scan timeout yapar)
+                using (SqlCommand checkCmd = new SqlCommand(
+                    "SELECT COUNT(*) FROM ModelImages WHERE ModelID = @ModelID", connection))
+                {
+                    checkCmd.Parameters.AddWithValue("@ModelID", modelID);
+                    int existingCount = (int)checkCmd.ExecuteScalar();
+                    if (existingCount >= 3)
+                    {
+                        // Bu model için 3 resim limiti doldu, atla
+                        return false;
+                    }
+                }
+
                 string query = "INSERT INTO ModelImages (ModelID, ModelKodu, ImageData) VALUES (@ModelID, @ModelKodu, @ImageData)";
                 using (SqlCommand command = new SqlCommand(query, connection))
                 {
                     command.Parameters.AddWithValue("@ModelID", modelID);
                     command.Parameters.AddWithValue("@ModelKodu", modelCode);
-                    command.Parameters.AddWithValue("@ImageData", imageData);
-                    connection.Open();
+                    command.Parameters.Add("@ImageData", SqlDbType.VarBinary, imageData.Length).Value = imageData;
                     command.ExecuteNonQuery();
                 }
             }
+            return true;
         }
+
 
         private void button4_Click(object sender, EventArgs e)
         {
@@ -391,16 +407,20 @@ namespace kalipproje
 
                         if (siparisInfo != null)
                         {
-                            // Resmi ekle
+                            // Resmi ekle — false dönerse limit aşıldı ya da hata oluştu
                             byte[] imageData = File.ReadAllBytes(imageFile);
-                            InsertImageData(siparisInfo.ModelID, siparisInfo.ModelKodu, imageData);
-                            imageCount++;
+                            bool eklendi = InsertImageData(siparisInfo.ModelID, siparisInfo.ModelKodu, imageData);
 
-                            // Eğer Gelen Kalıplar listesine alınacaksa ve henüz Bekleyen durumundaysa güncelle
-                            if (gelenListesineAl && siparisInfo.SiparisDurumu == 0)
+                            if (eklendi)
                             {
-                                UpdateSiparisDurumuToGelen(siparisInfo.SipID);
-                                durumGuncellenenCount++;
+                                imageCount++;
+
+                                // Durum güncellemesi SADECE resim başarıyla eklenince yapılır
+                                if (gelenListesineAl && siparisInfo.SiparisDurumu == 0)
+                                {
+                                    UpdateSiparisDurumuToGelen(siparisInfo.SipID);
+                                    durumGuncellenenCount++;
+                                }
                             }
                         }
                         else

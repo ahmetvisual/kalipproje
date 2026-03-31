@@ -425,25 +425,26 @@ namespace kalipproje
         private bool SaveImageToDatabase(string filePath, int mdlid, string modelKodu)
         {
             byte[] imageBytes = File.ReadAllBytes(filePath);
-            long fileSize = imageBytes.Length;
 
             using (SqlConnection connection = DatabaseHelper.GetConnection())
             {
                 connection.Open();
 
-                // ─── Kopya kontrolü: aynı modele aynı boyutta resim var mı? ───
+                // ─── Kopya kontrolü: bu model için kaç resim var? ───
+                // NOT: DATALENGTH(ImageData) tüm binary satırları tararak timeout'a neden oluyordu.
+                // Bunun yerine sadece adet kontrolü yapıp kullanıcıya bilgi veriyoruz.
                 using (SqlCommand checkCmd = new SqlCommand(
-                    "SELECT COUNT(*) FROM ModelImages WHERE ModelID = @ModelID AND DATALENGTH(ImageData) = @Size",
+                    "SELECT COUNT(*) FROM ModelImages WHERE ModelID = @ModelID",
                     connection))
                 {
                     checkCmd.Parameters.AddWithValue("@ModelID", mdlid);
-                    checkCmd.Parameters.AddWithValue("@Size", fileSize);
-                    int existing = (int)checkCmd.ExecuteScalar();
-                    if (existing > 0)
+                    int existingCount = (int)checkCmd.ExecuteScalar();
+                    if (existingCount >= 3)
                     {
                         var answer = MessageBox.Show(
-                            $"'{System.IO.Path.GetFileName(filePath)}' dosyasıyla aynı boyutta bir resim zaten mevcut.\nYine de eklensin mi?",
-                            "Kopya Resim Uyarısı",
+                            $"Bu model için zaten {existingCount} resim mevcut.\n" +
+                            $"'{System.IO.Path.GetFileName(filePath)}' yine de eklensin mi?",
+                            "Resim Limiti",
                             MessageBoxButtons.YesNo,
                             MessageBoxIcon.Warning);
                         if (answer != DialogResult.Yes) return false;

@@ -1173,25 +1173,25 @@ VALUES
                     foreach (string fileName in ofd.FileNames)
                     {
                         byte[] imageBytes = File.ReadAllBytes(fileName);
-                        long fileSize = imageBytes.Length;
 
-                        // ─── Kopya kontrolü: aynı modele aynı boyutta resim var mı? ───
+                        // ─── Kopya kontrolü: bu model için kaç resim var? ───
+                        // NOT: DATALENGTH(ImageData) binary full scan — timeout'a düşürüyordu.
                         bool isDuplicate = false;
                         using (SqlConnection checkCon = DatabaseHelper.GetConnection())
                         {
                             checkCon.Open();
                             using (SqlCommand checkCmd = new SqlCommand(
-                                "SELECT COUNT(*) FROM ModelImages WHERE ModelID = @ModelID AND DATALENGTH(ImageData) = @Size",
+                                "SELECT COUNT(*) FROM ModelImages WHERE ModelID = @ModelID",
                                 checkCon))
                             {
                                 checkCmd.Parameters.AddWithValue("@ModelID", mdlId);
-                                checkCmd.Parameters.AddWithValue("@Size", fileSize);
-                                int existing = (int)checkCmd.ExecuteScalar();
-                                if (existing > 0)
+                                int existingCount = (int)checkCmd.ExecuteScalar();
+                                if (existingCount >= 3)
                                 {
                                     var answer = MessageBox.Show(
-                                        $"'{System.IO.Path.GetFileName(fileName)}' dosyasıyla aynı boyutta bir resim zaten mevcut.\nYine de eklensin mi?",
-                                        "Kopya Resim Uyarısı",
+                                        $"Bu model için zaten {existingCount} resim mevcut.\n" +
+                                        $"'{System.IO.Path.GetFileName(fileName)}' yine de eklensin mi?",
+                                        "Resim Limiti",
                                         MessageBoxButtons.YesNo,
                                         MessageBoxIcon.Warning);
                                     isDuplicate = (answer != DialogResult.Yes);
