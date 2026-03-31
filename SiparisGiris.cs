@@ -1172,54 +1172,10 @@ VALUES
                     int eklenenSayisi = 0;
                     foreach (string fileName in ofd.FileNames)
                     {
-                        byte[] imageBytes = File.ReadAllBytes(fileName);
-
-                        // ─── Kopya kontrolü: bu model için kaç resim var? ───
-                        // NOT: DATALENGTH(ImageData) binary full scan — timeout'a düşürüyordu.
-                        bool isDuplicate = false;
-                        using (SqlConnection checkCon = DatabaseHelper.GetConnection())
+                        if (ImageManager.AddImageToModel(mdlId, textBox1.Text, fileName, true))
                         {
-                            checkCon.Open();
-                            using (SqlCommand checkCmd = new SqlCommand(
-                                "SELECT COUNT(*) FROM ModelImages WHERE ModelID = @ModelID",
-                                checkCon))
-                            {
-                                checkCmd.Parameters.AddWithValue("@ModelID", mdlId);
-                                int existingCount = (int)checkCmd.ExecuteScalar();
-                                if (existingCount >= 3)
-                                {
-                                    var answer = MessageBox.Show(
-                                        $"Bu model için zaten {existingCount} resim mevcut.\n" +
-                                        $"'{System.IO.Path.GetFileName(fileName)}' yine de eklensin mi?",
-                                        "Resim Limiti",
-                                        MessageBoxButtons.YesNo,
-                                        MessageBoxIcon.Warning);
-                                    isDuplicate = (answer != DialogResult.Yes);
-                                }
-                            }
+                            eklenenSayisi++;
                         }
-                        if (isDuplicate) continue;
-
-                        // ─── Resmi PictureBox'a yükle (MemoryStream kapatılmıyor!) ───
-                        var ms = new MemoryStream(imageBytes);
-                        pictureBox1.Image?.Dispose();
-                        pictureBox1.Image = Image.FromStream(ms);
-                        // Not: ms, Image dispose edilene kadar açık kalmalı — using kullanılmıyor
-
-                        // ─── Veritabanına ekle ───
-                        using (SqlConnection connection = DatabaseHelper.GetConnection())
-                        {
-                            connection.Open();
-                            string query = "INSERT INTO ModelImages (ModelID, ImageData, ModelKodu) VALUES (@ModelID, @ImageData, @ModelKodu)";
-                            using (SqlCommand command = new SqlCommand(query, connection))
-                            {
-                                command.Parameters.AddWithValue("@ModelID", mdlId);
-                                command.Parameters.AddWithValue("@ImageData", imageBytes);
-                                command.Parameters.AddWithValue("@ModelKodu", textBox1.Text);
-                                command.ExecuteNonQuery();
-                            }
-                        }
-                        eklenenSayisi++;
                     }
 
                     if (eklenenSayisi > 0)

@@ -303,8 +303,7 @@ namespace kalipproje
                         var modelInfo = GetModelInfoFromBarcode(barcode);
                         if (modelInfo != null)
                         {
-                            byte[] imageData = File.ReadAllBytes(imageFile);
-                            if (InsertImageData(modelInfo.Item1, modelInfo.Item2, imageData))
+                            if (ImageManager.AddImageToModel(modelInfo.Item1, modelInfo.Item2, imageFile, false))
                                 imageCount++;
                         }
                     }
@@ -336,37 +335,6 @@ namespace kalipproje
             }
 
             return modelInfo;
-        }
-
-        private bool InsertImageData(int modelID, string modelCode, byte[] imageData)
-        {
-            using (SqlConnection connection = DatabaseHelper.GetConnection())
-            {
-                connection.Open();
-
-                // Resim limit kontrolü (DATALENGTH kullanılmıyor — binary full scan timeout yapar)
-                using (SqlCommand checkCmd = new SqlCommand(
-                    "SELECT COUNT(*) FROM ModelImages WHERE ModelID = @ModelID", connection))
-                {
-                    checkCmd.Parameters.AddWithValue("@ModelID", modelID);
-                    int existingCount = (int)checkCmd.ExecuteScalar();
-                    if (existingCount >= 3)
-                    {
-                        // Bu model için 3 resim limiti doldu, atla
-                        return false;
-                    }
-                }
-
-                string query = "INSERT INTO ModelImages (ModelID, ModelKodu, ImageData) VALUES (@ModelID, @ModelKodu, @ImageData)";
-                using (SqlCommand command = new SqlCommand(query, connection))
-                {
-                    command.Parameters.AddWithValue("@ModelID", modelID);
-                    command.Parameters.AddWithValue("@ModelKodu", modelCode);
-                    command.Parameters.Add("@ImageData", SqlDbType.VarBinary, imageData.Length).Value = imageData;
-                    command.ExecuteNonQuery();
-                }
-            }
-            return true;
         }
 
 
@@ -408,8 +376,7 @@ namespace kalipproje
                         if (siparisInfo != null)
                         {
                             // Resmi ekle — false dönerse limit aşıldı ya da hata oluştu
-                            byte[] imageData = File.ReadAllBytes(imageFile);
-                            bool eklendi = InsertImageData(siparisInfo.ModelID, siparisInfo.ModelKodu, imageData);
+                            bool eklendi = ImageManager.AddImageToModel(siparisInfo.ModelID, siparisInfo.ModelKodu, imageFile, false);
 
                             if (eklendi)
                             {

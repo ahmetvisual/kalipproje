@@ -411,7 +411,7 @@ namespace kalipproje
                 int eklenenSayisi = 0;
                 foreach (string filePath in openFileDialog.FileNames)
                 {
-                    if (SaveImageToDatabase(filePath, selectedMdlId, modelKodu))
+                    if (ImageManager.AddImageToModel(selectedMdlId, modelKodu, filePath, true))
                         eklenenSayisi++;
                 }
 
@@ -422,48 +422,7 @@ namespace kalipproje
             }
         }
 
-        private bool SaveImageToDatabase(string filePath, int mdlid, string modelKodu)
-        {
-            byte[] imageBytes = File.ReadAllBytes(filePath);
 
-            using (SqlConnection connection = DatabaseHelper.GetConnection())
-            {
-                connection.Open();
-
-                // ─── Kopya kontrolü: bu model için kaç resim var? ───
-                // NOT: DATALENGTH(ImageData) tüm binary satırları tararak timeout'a neden oluyordu.
-                // Bunun yerine sadece adet kontrolü yapıp kullanıcıya bilgi veriyoruz.
-                using (SqlCommand checkCmd = new SqlCommand(
-                    "SELECT COUNT(*) FROM ModelImages WHERE ModelID = @ModelID",
-                    connection))
-                {
-                    checkCmd.Parameters.AddWithValue("@ModelID", mdlid);
-                    int existingCount = (int)checkCmd.ExecuteScalar();
-                    if (existingCount >= 3)
-                    {
-                        var answer = MessageBox.Show(
-                            $"Bu model için zaten {existingCount} resim mevcut.\n" +
-                            $"'{System.IO.Path.GetFileName(filePath)}' yine de eklensin mi?",
-                            "Resim Limiti",
-                            MessageBoxButtons.YesNo,
-                            MessageBoxIcon.Warning);
-                        if (answer != DialogResult.Yes) return false;
-                    }
-                }
-
-                // ─── Resmi veritabanına ekle ───
-                using (SqlCommand command = new SqlCommand(
-                    "INSERT INTO ModelImages (ModelID, ImageData, ModelKodu) VALUES (@ModelID, @ImageData, @ModelKodu)",
-                    connection))
-                {
-                    command.Parameters.AddWithValue("@ModelID", mdlid);
-                    command.Parameters.Add("@ImageData", SqlDbType.VarBinary, imageBytes.Length).Value = imageBytes;
-                    command.Parameters.AddWithValue("@ModelKodu", modelKodu);
-                    command.ExecuteNonQuery();
-                }
-            }
-            return true;
-        }
         private void ShowImageFromDatabase(int imageId)
         {
             currentImageId = imageId;
