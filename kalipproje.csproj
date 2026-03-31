@@ -11,7 +11,7 @@
 		<StartupObject>kalipproje.Program</StartupObject>
 
 		<!-- Version Information -->
-		<VersionPrefix>1.0.18</VersionPrefix>
+		<VersionPrefix>1.0.19</VersionPrefix>
 		<Version>$(VersionPrefix)</Version>
 		<AssemblyVersion>1.0.1.0</AssemblyVersion>
 		<FileVersion>1.0.1.0</FileVersion>

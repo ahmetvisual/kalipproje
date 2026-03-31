@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Diagnostics;
@@ -481,6 +481,11 @@ namespace kalipproje
             throw new TimeoutException("Dosya okuma zaman aşımına uğradı: " + path);
         }
 
-        private string GetCurrentVersion() => Application.ProductVersion;
+        private string GetCurrentVersion()
+        {
+            string version = Application.ProductVersion;
+            int plusIndex = version.IndexOf('+');
+            return plusIndex >= 0 ? version.Substring(0, plusIndex) : version;
+        }
     }
 }
