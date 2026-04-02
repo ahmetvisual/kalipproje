@@ -29,6 +29,7 @@ namespace kalipproje
         private string kullaniciDepartman;
         private string currentAsortisi;
 
+        private bool isCopyMode = false;
         public bool IsManualChange { get; set; } = false;
 
         public SiparisGiris()
@@ -63,16 +64,15 @@ namespace kalipproje
             if (siparisId > 0)
             {
                 isEditMode = true; // Düzenleme modunu etkinleştir
-                LoadSiparisData(siparisId);
+                currentSiparisId = siparisId; // Load event'inde kullanılacak
             }
         }
 
         public void LoadSiparisForCopy(int siparisId)
         {
-            LoadSiparisData(siparisId); // Mevcut siparişi yükle
-            isEditMode = false; // Düzenleme modunu devre dışı bırak
-            button1.Visible = false; // Güncelle butonunu gizle
-            button5.Visible = true; // Kaydet butonunu göster
+            currentSiparisId = siparisId; // Load event'inde LoadSiparisData çağrılacak
+            isEditMode = false; // Düzenleme modunu devre dışı bırak — Load event'inde butonlar buna göre ayarlanacak
+            isCopyMode = true; // Kopyalama modu — Load event'inde yükleme sonrası edit modunu kapat
         }
 
         private async Task<bool> IsKalipKoduChangedAndExistsAsync(string kalipKodu)
@@ -100,25 +100,31 @@ namespace kalipproje
             currentSiparisId = siparisId;
             string modelKodu = "";
 
+            // Event handler'ları geçici olarak kaldır — yükleme sırasında
+            // tetiklenen olaylar (uyumluluk kontrolü, comboBox4 sıfırlama vb.)
+            // veritabanından gelen değerleri bozmasın.
+            comboBox3.SelectedIndexChanged -= comboBox3_SelectedIndexChanged;
+            comboBox1.SelectedIndexChanged -= comboBox1_SelectedIndexChanged;
+
             using (var connection = DatabaseHelper.GetConnection())
             {
                 connection.Open();
 
                 // SiparisHeader'dan bilgileri çekme
                 string siparisQuery = @"
-        SELECT 
-            SH.*, 
+        SELECT
+            SH.*,
             YH1.KullaniciAdi AS OlusturanKullanici,
             YH2.KullaniciAdi AS GuncelleyenKullanici,
             SH.OlusturmaTarihi,
             SH.GuncellemeTarihi
-        FROM 
+        FROM
             SiparisHeader SH
-        LEFT JOIN 
+        LEFT JOIN
             YonetHeader YH1 ON SH.OlusturanKullaniciID = YH1.YonetID
-        LEFT JOIN 
+        LEFT JOIN
             YonetHeader YH2 ON SH.GuncelleyenKullaniciID = YH2.YonetID
-        WHERE 
+        WHERE
             SH.SipID = @SipID";
 
                 SqlCommand siparisCommand = new SqlCommand(siparisQuery, connection);
@@ -150,6 +156,7 @@ namespace kalipproje
                         textBox6.Text = reader["KalipKodu"].ToString();
                         textBox1.Text = modelKodu;
 
+                        // Önce Çeşit'i set et
                         foreach (var item in comboBox1.Items)
                         {
                             if (item.ToString() == reader["Cesit"].ToString())
@@ -157,6 +164,19 @@ namespace kalipproje
                                 comboBox1.SelectedItem = item;
                                 break;
                             }
+                        }
+
+                        // Çeşit'e göre comboBox4 durumunu ayarla (event devre dışı olduğu için manuel)
+                        string cesit = comboBox1.SelectedItem?.ToString();
+                        if (cesit == "Seri" || cesit == "Özel Seri")
+                        {
+                            comboBox4.Enabled = true;
+                            comboBox4.BackColor = Color.LightYellow;
+                        }
+                        else
+                        {
+                            comboBox4.Enabled = false;
+                            comboBox4.BackColor = SystemColors.Control;
                         }
 
                         comboBox4.SelectedIndex = comboBox4.FindStringExact(reader["Asortisi"].ToString());
@@ -187,6 +207,22 @@ namespace kalipproje
                     } // İkinci reader burada otomatik olarak kapanır
                 }
             }
+
+            // Event handler'ları geri bağla
+            comboBox3.SelectedIndexChanged += comboBox3_SelectedIndexChanged;
+            comboBox1.SelectedIndexChanged += comboBox1_SelectedIndexChanged;
+
+            // comboBox3 değerine göre textBox6 readonly durumunu ayarla
+            if (comboBox3.SelectedItem != null &&
+                (comboBox3.SelectedItem.ToString() == "ÖZEL KALIP" || comboBox3.SelectedItem.ToString() == "Z-BİZİM KALIP"))
+            {
+                textBox6.ReadOnly = false;
+            }
+            else
+            {
+                textBox6.ReadOnly = true;
+            }
+
             textBox2_KeyDown(textBox2, new KeyEventArgs(Keys.Enter));
         }
 
@@ -831,18 +867,30 @@ VALUES
             await FillUretimTanimiToComboBox();
 
             // Varsayılan değerler SADECE yeni sipariş girişinde atanmalı.
-            // Mevcut bir kaydı açarken (currentSiparisId > 0) varsayılanlar
-            // LoadSiparisData tarafından yüklenen gerçek değerlerin üzerine YAZILMAMALIdır.
+            // Mevcut bir kaydı açarken (currentSiparisId > 0) veritabanından yüklenen
+            // gerçek değerler kullanılır.
             if (currentSiparisId <= 0)
             {
                 comboBox2.SelectedItem = "Ercan Koçum";
                 comboBox1.SelectedItem = "Numune";
                 textBox5.Text = "ZİYLAN";
             }
+            else
+            {
+                // ComboBox'lar artık dolu — veritabanından sipariş verilerini yükle
+                LoadSiparisData(currentSiparisId);
 
-            // Mevcut sipariş: kurucu içinde zaten LoadSiparisData çağrıldı.
-            // Burada TEKRAR çağırmıyoruz — çift yükleme ve değer ezme önlendi.
-            // Sadece "Manuel Değişiklik" (NumuneSeri dönüşüm) akışını burada yönetiyoruz.
+                if (isCopyMode)
+                {
+                    // Kopyalama: verileri yükledik ama yeni kayıt olarak kaydedilecek
+                    isEditMode = false;
+                    currentSiparisId = -1;
+                    button1.Visible = false;
+                    button5.Visible = true;
+                }
+            }
+
+            // "Manuel Değişiklik" (NumuneSeri dönüşüm) akışı
             if (currentSiparisId > 0 && IsManualChange)
             {
                 if (comboBox1.SelectedItem != null)
