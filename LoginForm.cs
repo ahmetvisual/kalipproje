@@ -79,24 +79,20 @@ namespace kalipproje
             CheckForUpdatesAsync();
 
             // ---------------- Lisans kontrolü ----------------
-            if (IsTimeForLicenseCheck())
+            bool needsOnlineCheck = IsTimeForLicenseCheck();
+            bool registryValid = IsRegistryLicenseValid();
+
+            if (needsOnlineCheck || !registryValid)
             {
-                if (CheckHttpAccess())        // İnternet varsa yeni lisans üret & kaydet
+                if (CheckHttpAccess())
                     CreateLicenseFile();
-                else
+                else if (!registryValid)
                 {
-                    MessageBox.Show("Lisans doğrulaması yapılamadı. İnternet bağlantınızı kontrol edin.",
+                    MessageBox.Show("Lisans geçersiz. İnternet bağlantısı gerekiyor.",
                                     "Lisans Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     Close();
                     return;
                 }
-            }
-            else if (!IsRegistryLicenseValid())   // 7 gün içinde ama kayıt bozuksa
-            {
-                MessageBox.Show("Lisans geçersiz. İnternet bağlantısı gerekiyor.",
-                                "Lisans Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Close();
-                return;
             }
         }
         // --------------------------------------------------------------------
@@ -285,63 +281,31 @@ namespace kalipproje
             return Convert.ToBase64String(sha.ComputeHash(Encoding.UTF8.GetBytes(sysInfo)));
         }
 
-        // CPU + tüm MAC adresleri + makine & kullanıcı
+        // CPU + BIOS + makine & kullanıcı (MAC adresleri çıkarıldı – ağ kartı değişimlerinde lisans bozulmasın)
         private string GetSystemInfo()
-{
-    var sb = new StringBuilder()
-        .Append(Environment.MachineName)
-        .Append(Environment.UserName);
-
-    // CPU (ilk işlemci yeterli)
-    foreach (ManagementObject o in new ManagementObjectSearcher(
-             "SELECT ProcessorId FROM Win32_Processor").Get())
-    {
-        sb.Append(o["ProcessorId"]);
-        break;
-    }
-
-    // 1) Fiziksel ağ kartlarının MAC'leri
-    var macList = new List<string>();
-
-    foreach (ManagementObject o in new ManagementObjectSearcher(
-             "SELECT MACAddress, PhysicalAdapter FROM Win32_NetworkAdapter " +
-             "WHERE MACAddress IS NOT NULL").Get())
-    {
-        // Yalnızca gerçek (PhysicalAdapter = TRUE) kartları al
-        if (o["PhysicalAdapter"] is bool isPhys && isPhys)
         {
-            string mac = o["MACAddress"]?.ToString();
-            if (!string.IsNullOrWhiteSpace(mac))
-                macList.Add(mac);
+            var sb = new StringBuilder()
+                .Append(Environment.MachineName)
+                .Append(Environment.UserName);
+
+            // CPU (ilk işlemci yeterli)
+            foreach (ManagementObject o in new ManagementObjectSearcher(
+                     "SELECT ProcessorId FROM Win32_Processor").Get())
+            {
+                sb.Append(o["ProcessorId"]);
+                break;
+            }
+
+            // BIOS seri numarası
+            foreach (ManagementObject o in new ManagementObjectSearcher(
+                     "SELECT SerialNumber FROM Win32_BIOS").Get())
+            {
+                sb.Append(o["SerialNumber"]);
+                break;
+            }
+
+            return sb.ToString();
         }
-    }
-
-    // MAC yoksa (nadiren sanal makinelerde) tüm adaptörleri yedek olarak al
-    if (macList.Count == 0)
-    {
-        foreach (ManagementObject o in new ManagementObjectSearcher(
-                 "SELECT MACAddress FROM Win32_NetworkAdapter WHERE MACAddress IS NOT NULL").Get())
-        {
-            string mac = o["MACAddress"]?.ToString();
-            if (!string.IsNullOrWhiteSpace(mac))
-                macList.Add(mac);
-        }
-    }
-
-    macList.Sort(StringComparer.OrdinalIgnoreCase);  // SIRAYI SABİTLE
-    foreach (string mac in macList)
-        sb.Append(mac);
-
-    // 2) BIOS seri numarasını yedek bilgi olarak ekle
-    foreach (ManagementObject o in new ManagementObjectSearcher(
-             "SELECT SerialNumber FROM Win32_BIOS").Get())
-    {
-        sb.Append(o["SerialNumber"]);
-        break;
-    }
-
-    return sb.ToString();
-}
 
         // Uzak lisans servisinde “status”:”ok” bekleniyor
         private bool CheckHttpAccess()
