@@ -95,16 +95,49 @@ namespace kalipproje
             }
         }
 
+        /// <summary>
+        /// ComboBox'ta verilen değeri items arasında bulup seçer.
+        /// DB'den gelen CHAR kolonlarındaki trailing whitespace ve case farklılıklarını tolere eder.
+        /// </summary>
+        private static void SelectComboBoxItem(System.Windows.Forms.ComboBox comboBox, object dbValue)
+        {
+            if (dbValue == null || dbValue == DBNull.Value)
+            {
+                comboBox.SelectedIndex = -1;
+                return;
+            }
+
+            string target = dbValue.ToString().Trim();
+            if (string.IsNullOrEmpty(target))
+            {
+                comboBox.SelectedIndex = -1;
+                return;
+            }
+
+            for (int i = 0; i < comboBox.Items.Count; i++)
+            {
+                string item = comboBox.Items[i]?.ToString()?.Trim() ?? "";
+                if (string.Equals(item, target, StringComparison.OrdinalIgnoreCase))
+                {
+                    comboBox.SelectedIndex = i;
+                    return;
+                }
+            }
+
+            comboBox.SelectedIndex = -1;
+        }
+
         private void LoadSiparisData(int siparisId)
         {
             currentSiparisId = siparisId;
             string modelKodu = "";
 
             // Event handler'ları geçici olarak kaldır — yükleme sırasında
-            // tetiklenen olaylar (uyumluluk kontrolü, comboBox4 sıfırlama vb.)
+            // tetiklenen olaylar (uyumluluk kontrolü, comboBox3 items.Clear, comboBox4 sıfırlama vb.)
             // veritabanından gelen değerleri bozmasın.
             comboBox3.SelectedIndexChanged -= comboBox3_SelectedIndexChanged;
             comboBox1.SelectedIndexChanged -= comboBox1_SelectedIndexChanged;
+            textBox1.TextChanged -= textBox1_TextChanged;
 
             using (var connection = DatabaseHelper.GetConnection())
             {
@@ -139,32 +172,31 @@ namespace kalipproje
                         // richTextBox1 dolduruluyor
                         richTextBox1.Text = reader["Aciklama"] != DBNull.Value ? reader["Aciklama"].ToString() : "";
 
-                        // UretimTanimi comboBox3 dolduruluyor
-                        if (reader["UretimTanimi"] != DBNull.Value)
+                        // ÖNEMLİ: Önce ModelKodu'nu set et ki comboBox3 items'ı
+                        // prefix'e göre filtrelenmiş hale gelsin (LoadValidUretimTipleri).
+                        // Aksi halde TextChanged event'i sonradan tetiklenip
+                        // comboBox3.Items.Clear() ile seçimimizi silerdi.
+                        string trimmedModel = modelKodu.Trim();
+                        textBox1.Text = trimmedModel;
+                        if (trimmedModel.Length >= 4)
                         {
-                            comboBox3.SelectedIndex = comboBox3.FindStringExact(reader["UretimTanimi"].ToString());
+                            LoadValidUretimTipleri(trimmedModel.Substring(0, 4));
                         }
+
+                        // Şimdi comboBox3'ü doğru items üzerinden seç
+                        SelectComboBoxItem(comboBox3, reader["UretimTanimi"]);
 
                         // Diğer kontroller
-                        textBox6.Text = reader["KalipKodu"].ToString();
+                        textBox6.Text = reader["KalipKodu"].ToString().Trim();
                         originalKalipKodu = textBox6.Text; // Orijinal değeri saklayın
                         dateTimePicker1.Value = reader["SiparisTarihi"] != DBNull.Value ? Convert.ToDateTime(reader["SiparisTarihi"]) : DateTime.Now;
-                        comboBox2.SelectedItem = reader["SiparisVeren"].ToString();
-                        textBox5.Text = reader["MusteriUnvani"].ToString();
-                        textBox3.Text = reader["Termin"].ToString();
-                        textBox4.Text = reader["AyakkabiNo"].ToString();
-                        textBox6.Text = reader["KalipKodu"].ToString();
-                        textBox1.Text = modelKodu;
+                        SelectComboBoxItem(comboBox2, reader["SiparisVeren"]);
+                        textBox5.Text = reader["MusteriUnvani"].ToString().Trim();
+                        textBox3.Text = reader["Termin"].ToString().Trim();
+                        textBox4.Text = reader["AyakkabiNo"].ToString().Trim();
 
-                        // Önce Çeşit'i set et
-                        foreach (var item in comboBox1.Items)
-                        {
-                            if (item.ToString() == reader["Cesit"].ToString())
-                            {
-                                comboBox1.SelectedItem = item;
-                                break;
-                            }
-                        }
+                        // Önce Çeşit'i set et (trim + case-insensitive karşılaştırma)
+                        SelectComboBoxItem(comboBox1, reader["Cesit"]);
 
                         // Çeşit'e göre comboBox4 durumunu ayarla (event devre dışı olduğu için manuel)
                         string cesit = comboBox1.SelectedItem?.ToString();
@@ -179,9 +211,9 @@ namespace kalipproje
                             comboBox4.BackColor = SystemColors.Control;
                         }
 
-                        comboBox4.SelectedIndex = comboBox4.FindStringExact(reader["Asortisi"].ToString());
-                        comboBox5.SelectedIndex = comboBox5.FindStringExact(reader["KalipTuru"].ToString());
-                        comboBox6.SelectedIndex = comboBox6.FindStringExact(reader["Tedarikci"].ToString());
+                        SelectComboBoxItem(comboBox4, reader["Asortisi"]);
+                        SelectComboBoxItem(comboBox5, reader["KalipTuru"]);
+                        SelectComboBoxItem(comboBox6, reader["Tedarikci"]);
                         string olusturanKullanici = reader["OlusturanKullanici"]?.ToString() ?? "Bilinmiyor";
                         string guncelleyenKullanici = reader["GuncelleyenKullanici"]?.ToString() ?? "Bilinmiyor";
                         string olusturmaTarihi = reader["OlusturmaTarihi"] != DBNull.Value ? Convert.ToDateTime(reader["OlusturmaTarihi"]).ToString("g") : "Bilinmiyor";
@@ -202,19 +234,27 @@ namespace kalipproje
                     {
                         if (barkodReader.Read())
                         {
-                            textBox2.Text = barkodReader["Barkod"].ToString();
+                            textBox2.Text = barkodReader["Barkod"].ToString().Trim();
                         }
                     } // İkinci reader burada otomatik olarak kapanır
                 }
             }
 
+            // Event handler'lar devre dışıyken set edilmediği için
+            // ready flag'lerini manuel güncelle (sonraki validasyonlar için)
+            isModelKoduReady = !string.IsNullOrEmpty(textBox1.Text.Trim());
+            isUretimTanimiReady = comboBox3.SelectedItem != null;
+
             // Event handler'ları geri bağla
             comboBox3.SelectedIndexChanged += comboBox3_SelectedIndexChanged;
             comboBox1.SelectedIndexChanged += comboBox1_SelectedIndexChanged;
+            textBox1.TextChanged += textBox1_TextChanged;
 
             // comboBox3 değerine göre textBox6 readonly durumunu ayarla
-            if (comboBox3.SelectedItem != null &&
-                (comboBox3.SelectedItem.ToString() == "ÖZEL KALIP" || comboBox3.SelectedItem.ToString() == "Z-BİZİM KALIP"))
+            string cb3Val = comboBox3.SelectedItem?.ToString()?.Trim();
+            if (!string.IsNullOrEmpty(cb3Val) &&
+                (cb3Val.Equals("ÖZEL KALIP", StringComparison.OrdinalIgnoreCase) ||
+                 cb3Val.Equals("Z-BİZİM KALIP", StringComparison.OrdinalIgnoreCase)))
             {
                 textBox6.ReadOnly = false;
             }
